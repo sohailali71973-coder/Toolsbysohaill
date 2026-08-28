@@ -7,6 +7,17 @@ addEventListener("fetch", event => {
   event.respondWith(handleRequest(event.request));
 });
 
+// Helper function to modify JSON fields
+function customizeOwnerAndKey(data) {
+  if (data && typeof data === 'object') {
+    data.owner = "@sohailcyberexpert";
+    if (data.metadata && typeof data.metadata === 'object') {
+      data.metadata.key_owner = "sohaildaddy";
+    }
+  }
+  return data;
+}
+
 async function handleRequest(request) {
   if (request.method === "POST") {
     try {
@@ -68,8 +79,8 @@ async function handleRequest(request) {
           await sendMessage(chatId, "🔍 *Fetching Mobile Details...*");
           try {
             const res = await fetch(`https://nitin-developer-api-paid.nitinshab43.workers.dev/api?action=num&number=${query}&key=${API_KEY}`);
-            const data = await res.json();
-            if (data && typeof data === 'object') data.owner = "@sohailcyberexpert";
+            let data = await res.json();
+            data = customizeOwnerAndKey(data);
 
             await sendMessage(chatId, `📱 **Number Info:**\n\`\`\`json\n${JSON.stringify(data, null, 2)}\n\`\`\``);
           } catch (e) {
@@ -79,7 +90,7 @@ async function handleRequest(request) {
         }
 
         // Vehicle Info
-        if (text.startsWith("/vehicle")) {
+        if (text.startsWith("/vehicle") || text.startsWith("/vechicle")) {
           const query = text.split(/\s+/)[1];
           if (!query) {
             await sendMessage(chatId, "⚠️ **Usage:** `/vehicle RJ14CV0002`");
@@ -89,8 +100,8 @@ async function handleRequest(request) {
           await sendMessage(chatId, "🔍 *Fetching Vehicle Details...*");
           try {
             const res = await fetch(`https://nitin-api-free-user-1k-spacial.vercel.app/api?type=vehicle&search=${query}`);
-            const data = await res.json();
-            if (data && typeof data === 'object') data.owner = "@sohailcyberexpert";
+            let data = await res.json();
+            data = customizeOwnerAndKey(data);
 
             await sendMessage(chatId, `🚗 **Vehicle Info:**\n\`\`\`json\n${JSON.stringify(data, null, 2)}\n\`\`\``);
           } catch (e) {
@@ -110,8 +121,8 @@ async function handleRequest(request) {
           await sendMessage(chatId, "🔍 *Fetching UPI Details...*");
           try {
             const res = await fetch(`https://nitin-developer-api-paid.nitinshab43.workers.dev/api?action=upiinfo&upi=${encodeURIComponent(query)}&key=${API_KEY}`);
-            const data = await res.json();
-            if (data && typeof data === 'object') data.owner = "@sohailcyberexpert";
+            let data = await res.json();
+            data = customizeOwnerAndKey(data);
 
             await sendMessage(chatId, `💳 **UPI Info:**\n\`\`\`json\n${JSON.stringify(data, null, 2)}\n\`\`\``);
           } catch (e) {
@@ -120,7 +131,7 @@ async function handleRequest(request) {
           return new Response("OK", { status: 200 });
         }
 
-        // Pincode Info (Updated to Nitin API)
+        // Pincode Info
         if (text.startsWith("/pin") || text.startsWith("/pincode")) {
           const query = text.split(/\s+/)[1];
           if (!query || query.length !== 6 || isNaN(query)) {
@@ -131,8 +142,8 @@ async function handleRequest(request) {
           await sendMessage(chatId, "🔍 *Fetching Pincode Details...*");
           try {
             const res = await fetch(`https://nitin-api-free-user-1k-spacial.vercel.app/api?type=pincode&search=${query}`);
-            const data = await res.json();
-            if (data && typeof data === 'object') data.owner = "@sohailcyberexpert";
+            let data = await res.json();
+            data = customizeOwnerAndKey(data);
 
             await sendMessage(chatId, `📍 **Pincode Info:**\n\`\`\`json\n${JSON.stringify(data, null, 2)}\n\`\`\``);
           } catch (e) {
@@ -141,7 +152,7 @@ async function handleRequest(request) {
           return new Response("OK", { status: 200 });
         }
 
-        // Aadhaar Info (New Endpoint Added)
+        // Aadhaar Info
         if (text.startsWith("/aadhar")) {
           const query = text.split(/\s+/)[1];
           if (!query || query.length !== 12 || isNaN(query)) {
@@ -152,8 +163,8 @@ async function handleRequest(request) {
           await sendMessage(chatId, "🔍 *Fetching Aadhaar Details...*");
           try {
             const res = await fetch(`https://nitin-developer-api-paid.nitinshab43.workers.dev/api?action=aadhar&aadhar=${query}&key=${API_KEY}`);
-            const data = await res.json();
-            if (data && typeof data === 'object') data.owner = "@sohailcyberexpert";
+            let data = await res.json();
+            data = customizeOwnerAndKey(data);
 
             await sendMessage(chatId, `🆔 **Aadhaar Info:**\n\`\`\`json\n${JSON.stringify(data, null, 2)}\n\`\`\``);
           } catch (e) {
