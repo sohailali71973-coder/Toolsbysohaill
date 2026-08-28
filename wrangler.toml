@@ -1,3 +1,8 @@
-name = "square-river-fe98"
+name = "toolsbysohaill"
 main = "index.js"
-compatibility_date = "2026-01-01"
+compatibility_date = "2024-01-01"
+
+[[kv_namespaces]]
+binding = "BOT_DB"
+id = "64bac952270d458e8ab664143af34b70"
+
