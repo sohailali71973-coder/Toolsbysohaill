@@ -1,199 +1,167 @@
 const BOT_TOKEN = "8810008815:AAHZpZ7n5i4-6DxEnlGqV8SwNR-15VHG6Vc";
-const BOT_NAME = "TOOLs BOT by sohail";
-const INSTAGRAM_LINK = "https://instagram.com/clip2editz"; 
-const API_KEY = "MY_TEST_KEY_123";
+const ADMIN_ID = 7394600693; // Your Admin Telegram ID
 
-addEventListener("fetch", event => {
-  event.respondWith(handleRequest(event.request));
-});
-
-// Helper function to modify JSON fields
-function customizeOwnerAndKey(data) {
-  if (data && typeof data === 'object') {
-    data.owner = "@sohailcyberexpert";
-    if (data.metadata && typeof data.metadata === 'object') {
-      data.metadata.key_owner = "sohaildaddy";
-    }
+// Deep Customizer to replace branding strings globally
+function deepCustomizer(obj) {
+  if (typeof obj === 'string') {
+    return obj.replace(/FizzaGirl/gi, 'sohaildaddy')
+              .replace(/@FizzaGirl/gi, '@sohailcyberexpert');
   }
-  return data;
+  if (Array.isArray(obj)) {
+    return obj.map(deepCustomizer);
+  }
+  if (typeof obj === 'object' && obj !== null) {
+    const customized = {};
+    for (const key in obj) {
+      customized[key] = deepCustomizer(obj[key]);
+    }
+    return customized;
+  }
+  return obj;
 }
 
-async function handleRequest(request) {
-  if (request.method === "POST") {
+// Helper function to send Telegram messages
+async function sendMessage(chatId, text) {
+  const customizedText = deepCustomizer(text);
+  await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      chat_id: chatId,
+      text: customizedText,
+      parse_mode: "Markdown"
+    })
+  });
+}
+
+// Database helper functions using Cloudflare BOT_DB KV
+async function getUser(env, userId) {
+  const data = await env.BOT_DB.get(`user_${userId}`, { type: 'json' });
+  return data || { balance: 0, referredBy: null };
+}
+
+async function saveUser(env, userId, userData) {
+  await env.BOT_DB.put(`user_${userId}`, JSON.stringify(userData));
+}
+
+export default {
+  async fetch(request, env, ctx) {
+    if (request.method !== "POST") {
+      return new Response("OK");
+    }
+
     try {
       const update = await request.json();
+      const message = update.message;
 
-      // 1. Handle Inline Buttons
-      if (update.callback_query) {
-        const callbackQuery = update.callback_query;
-        const chatId = callbackQuery.message.chat.id;
-        const data = callbackQuery.data;
-
-        if (data === "verify_access") {
-          const mainMenu = `✅ **Verification Successful!**\n\nCommands use karein:\n\n1️⃣ **Mobile:** \`/num <10-digit number>\`\n2️⃣ **Vehicle:** \`/vehicle <Vehicle No.>\`\n3️⃣ **UPI:** \`/upi <UPI ID>\`\n4️⃣ **Pincode:** \`/pin <6-digit pincode>\` \n5️⃣ **Aadhaar:** \`/aadhar <12-digit number>\``;
-          const keyboard = {
-            inline_keyboard: [
-              [{ text: "📱 Mobile Lookup", callback_data: "btn_num" }, { text: "🚗 Vehicle Info", callback_data: "btn_vehicle" }],
-              [{ text: "💳 UPI Details", callback_data: "btn_upi" }, { text: "📍 Pincode Info", callback_data: "btn_pin" }],
-              [{ text: "🆔 Aadhaar Info", callback_data: "btn_aadhar" }]
-            ]
-          };
-          await sendInlineKeyboard(chatId, mainMenu, keyboard);
-          return new Response("OK", { status: 200 });
-        }
-
-        if (data === "btn_num") await sendMessage(chatId, "📲 **Mobile Search:**\nSend: `/num 9876543210`");
-        if (data === "btn_vehicle") await sendMessage(chatId, "🚗 **Vehicle Search:**\nSend: `/vehicle RJ14CV0002`");
-        if (data === "btn_upi") await sendMessage(chatId, "💳 **UPI Search:**\nSend: `/upi example@ybl`");
-        if (data === "btn_pin") await sendMessage(chatId, "📍 **Pincode Search:**\nSend: `/pin 411001`");
-        if (data === "btn_aadhar") await sendMessage(chatId, "🆔 **Aadhaar Search:**\nSend: `/aadhar 123456789012`");
-        
-        return new Response("OK", { status: 200 });
+      if (!message || !message.text) {
+        return new Response("OK");
       }
 
-      // 2. Handle Text Messages
-      if (update.message && update.message.text) {
-        const chatId = update.message.chat.id;
-        const text = update.message.text.trim();
+      const chatId = message.chat.id;
+      const userId = message.from.id;
+      const text = message.text.trim();
 
-        if (text === "/start") {
-          const welcomeMsg = `👋 **Welcome to ${BOT_NAME}!**\n\n⚠️ **Access Gate:** Pehle Instagram page follow karein aur **Verify** par click karein.`;
-          const keyboard = {
-            inline_keyboard: [
-              [{ text: "📸 Follow on Instagram", url: INSTAGRAM_LINK }],
-              [{ text: "✅ Verify Follow", callback_data: "verify_access" }]
-            ]
-          };
-          await sendInlineKeyboard(chatId, welcomeMsg, keyboard);
-          return new Response("OK", { status: 200 });
+      let user = await getUser(env, userId);
+
+      // Handle /start and Referrals (/start <referrer_id>)
+      if (text.startsWith("/start")) {
+        const parts = text.split(" ");
+        if (parts.length > 1 && !user.referredBy && parts[1] != userId) {
+          const referrerId = parts[1];
+          let referrer = await getUser(env, referrerId);
+          referrer.balance += 5; // Reward 5 credits to referrer
+          await saveUser(env, referrerId, referrer);
+
+          user.referredBy = referrerId;
+          await saveUser(env, userId, user);
+
+          await sendMessage(chatId, `🎁 You joined via referral! Referrer (${referrerId}) received 5 credits.`);
         }
 
-        // Mobile Lookup
-        if (text.startsWith("/num")) {
-          const query = text.split(/\s+/)[1];
-          if (!query || query.length !== 10 || isNaN(query)) {
-            await sendMessage(chatId, "⚠️ **Usage:** `/num 9876543210` (10-digit number enter karein)");
-            return new Response("OK", { status: 200 });
-          }
+        const responseMsg = `Welcome to @sohailcyberexpert Bot!\n\n` +
+          `👤 *Your Profile*\n` +
+          `• User ID: \`${userId}\`\n` +
+          `• Credits: *${user.balance}*\n\n` +
+          `🔗 *Referral Link:*\n` +
+          `https://t.me/toolsbysohaill_bot?start=${userId}\n\n` +
+          `📌 *Available Commands:*\n` +
+          `• /profile - Check your balance\n` +
+          `• /redeem <code> - Redeem gift code`;
 
-          await sendMessage(chatId, "🔍 *Fetching Mobile Details...*");
-          try {
-            const res = await fetch(`https://nitin-developer-api-paid.nitinshab43.workers.dev/api?action=num&number=${query}&key=${API_KEY}`);
-            let data = await res.json();
-            data = customizeOwnerAndKey(data);
-
-            await sendMessage(chatId, `📱 **Number Info:**\n\`\`\`json\n${JSON.stringify(data, null, 2)}\n\`\`\``);
-          } catch (e) {
-            await sendMessage(chatId, "❌ Server Error or Invalid API Response!");
-          }
-          return new Response("OK", { status: 200 });
-        }
-
-        // Vehicle Info
-        if (text.startsWith("/vehicle") || text.startsWith("/vechicle")) {
-          const query = text.split(/\s+/)[1];
-          if (!query) {
-            await sendMessage(chatId, "⚠️ **Usage:** `/vehicle RJ14CV0002`");
-            return new Response("OK", { status: 200 });
-          }
-
-          await sendMessage(chatId, "🔍 *Fetching Vehicle Details...*");
-          try {
-            const res = await fetch(`https://nitin-api-free-user-1k-spacial.vercel.app/api?type=vehicle&search=${query}`);
-            let data = await res.json();
-            data = customizeOwnerAndKey(data);
-
-            await sendMessage(chatId, `🚗 **Vehicle Info:**\n\`\`\`json\n${JSON.stringify(data, null, 2)}\n\`\`\``);
-          } catch (e) {
-            await sendMessage(chatId, "❌ Server Error!");
-          }
-          return new Response("OK", { status: 200 });
-        }
-
-        // UPI Info
-        if (text.startsWith("/upi")) {
-          const query = text.split(/\s+/)[1];
-          if (!query) {
-            await sendMessage(chatId, "⚠️ **Usage:** `/upi example@ybl`");
-            return new Response("OK", { status: 200 });
-          }
-
-          await sendMessage(chatId, "🔍 *Fetching UPI Details...*");
-          try {
-            const res = await fetch(`https://nitin-developer-api-paid.nitinshab43.workers.dev/api?action=upiinfo&upi=${encodeURIComponent(query)}&key=${API_KEY}`);
-            let data = await res.json();
-            data = customizeOwnerAndKey(data);
-
-            await sendMessage(chatId, `💳 **UPI Info:**\n\`\`\`json\n${JSON.stringify(data, null, 2)}\n\`\`\``);
-          } catch (e) {
-            await sendMessage(chatId, "❌ Server Error!");
-          }
-          return new Response("OK", { status: 200 });
-        }
-
-        // Pincode Info
-        if (text.startsWith("/pin") || text.startsWith("/pincode")) {
-          const query = text.split(/\s+/)[1];
-          if (!query || query.length !== 6 || isNaN(query)) {
-            await sendMessage(chatId, "⚠️ **Usage:** `/pin 411001` (6-digit pincode)");
-            return new Response("OK", { status: 200 });
-          }
-
-          await sendMessage(chatId, "🔍 *Fetching Pincode Details...*");
-          try {
-            const res = await fetch(`https://nitin-api-free-user-1k-spacial.vercel.app/api?type=pincode&search=${query}`);
-            let data = await res.json();
-            data = customizeOwnerAndKey(data);
-
-            await sendMessage(chatId, `📍 **Pincode Info:**\n\`\`\`json\n${JSON.stringify(data, null, 2)}\n\`\`\``);
-          } catch (e) {
-            await sendMessage(chatId, "❌ Server Error!");
-          }
-          return new Response("OK", { status: 200 });
-        }
-
-        // Aadhaar Info
-        if (text.startsWith("/aadhar")) {
-          const query = text.split(/\s+/)[1];
-          if (!query || query.length !== 12 || isNaN(query)) {
-            await sendMessage(chatId, "⚠️ **Usage:** `/aadhar 123456789012` (12-digit Aadhaar number enter karein)");
-            return new Response("OK", { status: 200 });
-          }
-
-          await sendMessage(chatId, "🔍 *Fetching Aadhaar Details...*");
-          try {
-            const res = await fetch(`https://nitin-developer-api-paid.nitinshab43.workers.dev/api?action=aadhar&aadhar=${query}&key=${API_KEY}`);
-            let data = await res.json();
-            data = customizeOwnerAndKey(data);
-
-            await sendMessage(chatId, `🆔 **Aadhaar Info:**\n\`\`\`json\n${JSON.stringify(data, null, 2)}\n\`\`\``);
-          } catch (e) {
-            await sendMessage(chatId, "❌ Server Error or Invalid API Key!");
-          }
-          return new Response("OK", { status: 200 });
-        }
+        await sendMessage(chatId, responseMsg);
+        return new Response("OK");
       }
-    } catch (e) {
-      console.error(e);
+
+      // Profile Command
+      if (text === "/profile" || text === "/balance") {
+        await sendMessage(chatId, `👤 *Profile Status:*\n• User ID: \`${userId}\`\n• Balance: *${user.balance} Credits*`);
+        return new Response("OK");
+      }
+
+      // Redeem Command (/redeem <code>)
+      if (text.startsWith("/redeem")) {
+        const code = text.split(" ")[1];
+        if (!code) {
+          await sendMessage(chatId, "⚠️ *Usage:* `/redeem <code>`");
+          return new Response("OK");
+        }
+
+        const codeVal = await env.BOT_DB.get(`code_${code}`);
+        if (!codeVal) {
+          await sendMessage(chatId, "❌ *Invalid or already used code.*");
+          return new Response("OK");
+        }
+
+        const creditsToAdd = parseInt(codeVal);
+        user.balance += creditsToAdd;
+        await saveUser(env, userId, user);
+        await env.BOT_DB.delete(`code_${code}`);
+
+        await sendMessage(chatId, `🎉 *Success!* Redeemed ${creditsToAdd} credits.\nCurrent Balance: *${user.balance} Credits*`);
+        return new Response("OK");
+      }
+
+      // --- ADMIN COMMANDS (Restricted to ID: 7394600693) ---
+
+      // Generate Redeem Code: /gencode <code_name> <credits>
+      if (text.startsWith("/gencode")) {
+        if (userId !== ADMIN_ID) {
+          await sendMessage(chatId, "⛔ *Admin privileges required.*");
+          return new Response("OK");
+        }
+        const [, code, amount] = text.split(" ");
+        if (!code || !amount || isNaN(amount)) {
+          await sendMessage(chatId, "⚠️ *Usage:* `/gencode <code> <amount>`");
+          return new Response("OK");
+        }
+        await env.BOT_DB.put(`code_${code}`, amount);
+        await sendMessage(chatId, `✅ *Code Created!*\n• Code: \`${code}\`\n• Value: *${amount} Credits*`);
+        return new Response("OK");
+      }
+
+      // Add Direct Credits: /addcredit <target_user_id> <amount>
+      if (text.startsWith("/addcredit")) {
+        if (userId !== ADMIN_ID) {
+          await sendMessage(chatId, "⛔ *Admin privileges required.*");
+          return new Response("OK");
+        }
+        const [, targetId, amount] = text.split(" ");
+        if (!targetId || !amount || isNaN(amount)) {
+          await sendMessage(chatId, "⚠️ *Usage:* `/addcredit <user_id> <amount>`");
+          return new Response("OK");
+        }
+        let targetUser = await getUser(env, targetId);
+        targetUser.balance += parseInt(amount);
+        await saveUser(env, targetId, targetUser);
+        await sendMessage(chatId, `✅ *Credits Added!*\n• Target User: \`${targetId}\`\n• Added: *${amount} Credits*\n• New Balance: *${targetUser.balance} Credits*`);
+        return new Response("OK");
+      }
+
+    } catch (err) {
+      console.error(err);
     }
+
+    return new Response("OK");
   }
-
-  return new Response("OK", { status: 200 });
-}
-
-// Helper Functions
-async function sendMessage(chatId, text) {
-  return await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ chat_id: chatId, text: text, parse_mode: "Markdown" })
-  });
-}
-
-async function sendInlineKeyboard(chatId, text, keyboard) {
-  return await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ chat_id: chatId, text: text, parse_mode: "Markdown", reply_markup: keyboard })
-  });
-}
+};
